@@ -144,7 +144,7 @@ $('forgotPasswordForm')?.addEventListener('submit', async (e) => {
   setBtnLoading(btn, true);
 
   const { error } = await db.auth.resetPasswordForEmail(email, {
-    redirectTo: 'https://baarisportscentre.co.ke/admin/reset-password.html',
+    redirectTo: 'https://admin.baarisportscentre.co.ke/reset-password.html',
   });
 
   setBtnLoading(btn, false, 'Send Reset Link');

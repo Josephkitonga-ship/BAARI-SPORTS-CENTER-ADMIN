@@ -81,31 +81,39 @@
 
     <header class="admin-header">
       <div class="admin-header-inner">
-        <a href="https://baarisportscentre.co.ke/" class="logo" aria-label="Baari Sports Center">
-          <span class="logo-main">BAARI</span>
-          <span class="logo-sub">Admin</span>
-        </a>
-        <nav class="admin-tabs" aria-label="Admin sections">
-          <button class="admin-tab admin-tab--active" data-tab="dashboard">Dashboard</button>
-          <button class="admin-tab" data-tab="products">Products</button>
-          <button class="admin-tab" data-tab="categories">Categories</button>
-          <button class="admin-tab" data-tab="orders">Orders</button>
-          <button class="admin-tab" data-tab="kits">Kit Requests</button>
-        </nav>
+        <div class="admin-header-left">
+          <button class="drawer-trigger" id="drawerTrigger" aria-label="Open navigation" aria-expanded="false" aria-controls="navDrawer">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+          </button>
+          <a href="https://baarisportscentre.co.ke/" class="logo" aria-label="Baari Sports Center">
+            <span class="logo-main">BAARI</span>
+            <span class="logo-sub">Admin</span>
+          </a>
+        </div>
         <div class="admin-header-actions">
           <a href="https://baarisportscentre.co.ke/" class="btn btn--ghost btn--sm">View Storefront</a>
           <button class="btn btn--ghost btn--sm" id="logoutBtn">Sign Out</button>
         </div>
       </div>
-      <!-- Mobile tab select (admin-tabs collapses below a breakpoint) -->
-      <select class="admin-tabs-mobile" id="adminTabsMobile" aria-label="Admin sections">
-        <option value="dashboard">Dashboard</option>
-        <option value="products">Products</option>
-        <option value="categories">Categories</option>
-        <option value="orders">Orders</option>
-        <option value="kits">Kit Requests</option>
-      </select>
     </header>
+
+    <!-- ── NAV DRAWER (top-left, slides out) ────────────────── -->
+    <div class="drawer-scrim" id="drawerScrim" hidden></div>
+    <nav class="nav-drawer" id="navDrawer" aria-label="Admin sections" aria-hidden="true">
+      <div class="nav-drawer-header">
+        <span class="nav-drawer-title">Menu</span>
+        <button class="icon-btn" id="drawerCloseBtn" aria-label="Close menu">✕</button>
+      </div>
+      <div class="nav-drawer-tabs">
+        <button class="nav-drawer-tab nav-drawer-tab--active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-drawer-tab" data-tab="products">Products</button>
+        <button class="nav-drawer-tab" data-tab="categories">Categories</button>
+        <button class="nav-drawer-tab" data-tab="orders">Orders</button>
+        <button class="nav-drawer-tab" data-tab="kits">Kit Requests</button>
+      </div>
+    </nav>
 
     <main class="admin-main">
 

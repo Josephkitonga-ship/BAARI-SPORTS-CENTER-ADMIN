@@ -157,11 +157,47 @@ $('forgotPasswordForm')?.addEventListener('submit', async (e) => {
   $('forgotPasswordForm').reset();
 });
 
-/* ── TABS (desktop buttons + mobile select stay in sync) ──── */
+/* ── NAV DRAWER (top-left hamburger → slide-out panel) ────
+   Replaces the old top-bar tab strip / mobile <select>. One
+   drawer serves both mobile and desktop; it opens over a
+   dimmed scrim and closes on tab select, scrim click, close
+   button, or Escape. */
+const drawerTrigger = $('drawerTrigger');
+const navDrawer = $('navDrawer');
+const drawerScrim = $('drawerScrim');
+
+function openDrawer() {
+  navDrawer.classList.add('is-open');
+  navDrawer.setAttribute('aria-hidden', 'false');
+  drawerScrim.hidden = false;
+  // Next frame so the transition from opacity:0 actually runs.
+  requestAnimationFrame(() => drawerScrim.classList.add('is-visible'));
+  drawerTrigger?.setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  navDrawer.classList.remove('is-open');
+  navDrawer.setAttribute('aria-hidden', 'true');
+  drawerScrim.classList.remove('is-visible');
+  drawerTrigger?.setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+  setTimeout(() => { if (!navDrawer.classList.contains('is-open')) drawerScrim.hidden = true; }, 260);
+}
+
+drawerTrigger?.addEventListener('click', () => {
+  navDrawer.classList.contains('is-open') ? closeDrawer() : openDrawer();
+});
+drawerScrim?.addEventListener('click', closeDrawer);
+$('drawerCloseBtn')?.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && navDrawer?.classList.contains('is-open')) closeDrawer();
+});
+
+/* ── TABS (driven from the nav drawer) ───────────────────── */
 function activateTab(tabName) {
-  document.querySelectorAll('.admin-tab').forEach((t) => t.classList.toggle('admin-tab--active', t.dataset.tab === tabName));
+  document.querySelectorAll('.nav-drawer-tab').forEach((t) => t.classList.toggle('nav-drawer-tab--active', t.dataset.tab === tabName));
   document.querySelectorAll('.admin-panel').forEach((p) => p.classList.toggle('admin-panel--active', p.id === `panel-${tabName}`));
-  $('adminTabsMobile').value = tabName;
+  closeDrawer();
 
   if (tabName === 'dashboard') loadDashboard();
   if (tabName === 'products') loadProducts();
@@ -170,10 +206,9 @@ function activateTab(tabName) {
   if (tabName === 'kits') loadKitRequests();
 }
 
-document.querySelectorAll('.admin-tab').forEach((tab) => {
+document.querySelectorAll('.nav-drawer-tab').forEach((tab) => {
   tab.addEventListener('click', () => activateTab(tab.dataset.tab));
 });
-$('adminTabsMobile')?.addEventListener('change', (e) => activateTab(e.target.value));
 
 /* ── DASHBOARD ───────────────────────────────────────────── */
 async function loadDashboard() {
@@ -228,6 +263,9 @@ function renderOrderFeed(container, orders, { compact = false } = {}) {
   container.querySelectorAll('.wa-update-btn[data-id]').forEach((btn) =>
     btn.addEventListener('click', () => sendOrderWhatsAppUpdate(btn.dataset.id, orders))
   );
+  container.querySelectorAll('.order-delete-btn[data-id]').forEach((btn) =>
+    btn.addEventListener('click', () => deleteOrder(btn.dataset.id, container, orders))
+  );
 }
 
 const CONTACT_PREFERENCE_BADGE = {
@@ -241,6 +279,7 @@ function renderOrderCard(o, compact) {
   const itemsSummary = (o.items || []).map((i) => `${i.name}${i.size ? ` (${i.size})` : ''} × ${i.qty}`).join(', ');
   const contactBadge = CONTACT_PREFERENCE_BADGE[o.contact_preference] || CONTACT_PREFERENCE_BADGE.whatsapp;
   const needsCallback = o.contact_preference === 'call';
+  const isAttended = o.status === 'delivered';
 
   return `
     <article class="order-card${needsCallback ? ' order-card--callback' : ''}" data-id="${o.id}">
@@ -264,6 +303,10 @@ function renderOrderCard(o, compact) {
           ${needsCallback
             ? `<a class="wa-update-btn" href="tel:${escapeHTML(o.phone)}">Call Customer</a>`
             : `<button class="wa-update-btn" data-id="${o.id}" type="button">WhatsApp Update</button>`}
+          ${!compact ? `
+            <button class="order-delete-btn" data-id="${o.id}" type="button" ${isAttended ? '' : 'disabled'}
+              title="${isAttended ? 'Delete this order' : 'Only delivered orders can be deleted'}">Delete</button>
+          ` : ''}
         </div>
       </div>
     </article>`;
@@ -288,6 +331,40 @@ async function updateOrderStatus(id, status) {
   const { error } = await db.from('orders').update({ status }).eq('id', id);
   if (error) { toast('Failed to update order status.'); console.error(error); return; }
   toast('Order status updated.', 'success');
+  // Re-render whichever feed is on screen so the Delete button's
+  // enabled state stays in sync with the new status. Panels are
+  // shown/hidden via the admin-panel--active class, not [hidden].
+  if ($('panel-orders').classList.contains('admin-panel--active')) loadOrders();
+  if ($('panel-dashboard').classList.contains('admin-panel--active')) loadDashboard();
+}
+
+/* ── ORDERS: DELETE (attended/delivered orders only) ─────── */
+async function deleteOrder(id, container, orders) {
+  const order = orders.find((o) => o.id === id);
+  if (order && order.status !== 'delivered') {
+    toast('Only delivered orders can be deleted.', 'error');
+    return;
+  }
+  if (!confirm('Delete this order permanently? This cannot be undone.')) return;
+
+  // .select() forces Supabase to return the deleted row(s) so we can tell
+  // a real deletion apart from a silent no-op. Without it, a missing RLS
+  // DELETE policy returns { error: null, data: null } even though nothing
+  // was deleted — the request "succeeds" but the order stays in the table.
+  const { data, error } = await db.from('orders').delete().eq('id', id).select();
+
+  if (error) { toast('Failed to delete order.'); console.error(error); return; }
+
+  if (!data || data.length === 0) {
+    toast('Delete was blocked by database permissions. See console.', 'error');
+    console.error('[admin] Order delete returned 0 rows — likely missing an RLS DELETE policy on the "orders" table for authenticated users.');
+    return;
+  }
+
+  toast('Order deleted.', 'success');
+  // Refresh whichever view(s) are currently showing this order.
+  if ($('panel-orders').classList.contains('admin-panel--active')) loadOrders();
+  if ($('panel-dashboard').classList.contains('admin-panel--active')) loadDashboard();
 }
 
 function sendOrderWhatsAppUpdate(orderId, orders) {
